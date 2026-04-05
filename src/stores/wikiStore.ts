@@ -184,4 +184,19 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       return { ...p, blocks };
     }),
   })),
+
+  savePageContent: (pageId) => set((s) => {
+    const page = s.pages.find((p) => p.id === pageId);
+    if (!page) return s;
+    return { savedBlocksMap: { ...s.savedBlocksMap, [pageId]: structuredClone(page.blocks) } };
+  }),
+
+  hasUnsavedChanges: (pageId) => {
+    const s = get();
+    const page = s.pages.find((p) => p.id === pageId);
+    if (!page) return false;
+    const saved = s.savedBlocksMap[pageId];
+    if (!saved) return page.blocks.length > 0;
+    return JSON.stringify(page.blocks) !== JSON.stringify(saved);
+  },
 }));
