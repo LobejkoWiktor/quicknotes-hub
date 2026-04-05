@@ -114,14 +114,19 @@ export const useWikiStore = create<WikiState>((set, get) => ({
   addPage: (folderId) => {
     const s = get();
     const folderPages = s.pages.filter((p) => p.folderId === folderId);
+    const initialBlocks = [defaultBlock('paragraph')];
     const newPage: Page = {
       id: uid(),
       folderId,
       title: 'Untitled',
       position: folderPages.length,
-      blocks: [defaultBlock('paragraph')],
+      blocks: initialBlocks,
     };
-    set({ pages: [...s.pages, newPage], activePageId: newPage.id });
+    set({
+      pages: [...s.pages, newPage],
+      activePageId: newPage.id,
+      savedBlocksMap: { ...s.savedBlocksMap, [newPage.id]: structuredClone(initialBlocks) },
+    });
   },
   renamePage: (id, title) => set((s) => ({
     pages: s.pages.map((p) => p.id === id ? { ...p, title } : p),
