@@ -48,6 +48,9 @@ interface WikiState {
   deleteBlock: (pageId: string, blockId: string) => void;
   changeBlockType: (pageId: string, blockId: string, type: Block['type']) => void;
   reorderBlocks: (pageId: string, fromIndex: number, toIndex: number) => void;
+
+  savePageContent: (pageId: string) => void;
+  hasUnsavedChanges: (pageId: string) => boolean;
 }
 
 const uid = () => crypto.randomUUID();
