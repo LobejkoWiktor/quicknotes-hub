@@ -77,7 +77,10 @@ const WikiSidebar = () => {
               editingId={editingId}
               editValue={editValue}
               onToggle={() => toggleFolder(folder.id)}
-              onSelectPage={setActivePage}
+              onSelectPage={(id) => {
+                const nav = (window as any).__wikiNavigate;
+                if (nav) nav(id); else setActivePage(id);
+              }}
               onAddPage={() => addPage(folder.id)}
               onDeleteFolder={() => deleteFolder(folder.id)}
               onDeletePage={(id) => deletePage(id)}
