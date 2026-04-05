@@ -51,9 +51,9 @@ const PageEditor = () => {
   // Presence heartbeat
   useEffect(() => {
     if (!activePageId || !user) return;
-    setPresence(user.id, user.name, activePageId);
+    setPresence(user.id, user.email, activePageId);
     const interval = setInterval(() => {
-      setPresence(user.id, user.name, activePageId);
+      setPresence(user.id, user.email, activePageId);
     }, PRESENCE_INTERVAL);
     return () => clearInterval(interval);
   }, [activePageId, user, setPresence]);
