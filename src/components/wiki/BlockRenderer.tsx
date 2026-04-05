@@ -1,0 +1,174 @@
+import { useRef, useEffect, type KeyboardEvent } from 'react';
+import type { Block } from '@/stores/wikiStore';
+import { GripVertical, Trash2 } from 'lucide-react';
+import TableBlock from './TableBlock';
+
+interface BlockRendererProps {
+  block: Block;
+  onUpdate: (data: Record<string, unknown>) => void;
+  onDelete: () => void;
+  onAddAfter: (type: Block['type']) => void;
+  index: number;
+}
+
+const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter }: BlockRendererProps) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current && ref.current.textContent !== (block.data.text as string)) {
+      ref.current.textContent = (block.data.text as string) || '';
+    }
+  }, [block.id]); // only on mount/id change
+
+  const handleInput = () => {
+    if (ref.current) {
+      onUpdate({ text: ref.current.textContent || '' });
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onAddAfter('paragraph');
+    }
+    if (e.key === 'Backspace' && !ref.current?.textContent) {
+      e.preventDefault();
+      onDelete();
+    }
+  };
+
+  const baseClasses = 'outline-none w-full empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50';
+
+  const renderEditable = () => {
+    switch (block.type) {
+      case 'h1':
+        return (
+          <div
+            ref={ref}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            data-placeholder="Heading 1"
+            className={`${baseClasses} text-3xl font-bold tracking-tight`}
+          />
+        );
+      case 'h2':
+        return (
+          <div
+            ref={ref}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            data-placeholder="Heading 2"
+            className={`${baseClasses} text-2xl font-semibold tracking-tight`}
+          />
+        );
+      case 'h3':
+        return (
+          <div
+            ref={ref}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            data-placeholder="Heading 3"
+            className={`${baseClasses} text-xl font-semibold`}
+          />
+        );
+      case 'bullet':
+        return (
+          <div className="flex items-start gap-2">
+            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
+            <div
+              ref={ref}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onKeyDown={handleKeyDown}
+              data-placeholder="List item"
+              className={`${baseClasses} flex-1`}
+            />
+          </div>
+        );
+      case 'numbered':
+        return (
+          <div className="flex items-start gap-2">
+            <span className="text-muted-foreground text-sm mt-0.5 min-w-[1.2em] text-right shrink-0">
+              {(block.data.index as number || 0) + 1}.
+            </span>
+            <div
+              ref={ref}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onKeyDown={handleKeyDown}
+              data-placeholder="List item"
+              className={`${baseClasses} flex-1`}
+            />
+          </div>
+        );
+      case 'checklist':
+        return (
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={!!block.data.checked}
+              onChange={(e) => onUpdate({ checked: e.target.checked })}
+              className="mt-1 h-4 w-4 rounded border-border accent-primary"
+            />
+            <div
+              ref={ref}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onKeyDown={handleKeyDown}
+              data-placeholder="To-do"
+              className={`${baseClasses} flex-1 ${block.data.checked ? 'line-through text-muted-foreground' : ''}`}
+            />
+          </div>
+        );
+      case 'table':
+        return (
+          <TableBlock
+            rows={(block.data.rows as string[][]) || [['', ''], ['', '']]}
+            onChange={(rows) => onUpdate({ rows })}
+          />
+        );
+      default:
+        return (
+          <div
+            ref={ref}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            data-placeholder="Type something..."
+            className={`${baseClasses} text-base leading-relaxed`}
+          />
+        );
+    }
+  };
+
+  return (
+    <div className="group relative flex items-start gap-1 py-1 -ml-7">
+      <div className="flex items-center gap-0.5 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button className="p-0.5 rounded hover:bg-wiki-hover cursor-grab text-muted-foreground/40">
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 min-w-0">
+        {renderEditable()}
+      </div>
+      <button
+        onClick={onDelete}
+        className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all mt-0.5"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+};
+
+export default BlockRenderer;

@@ -1,16 +1,23 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useAuthStore } from '@/stores/authStore';
+import Login from './Login';
+import WikiSidebar from '@/components/wiki/WikiSidebar';
+import TopBar from '@/components/wiki/TopBar';
+import PageEditor from '@/components/wiki/PageEditor';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const user = useAuthStore((s) => s.user);
+
+  if (!user) return <Login />;
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="flex h-screen w-full bg-background">
+      <WikiSidebar />
+      <div className="flex-1 flex flex-col min-w-0">
+        <TopBar />
+        <PageEditor />
+      </div>
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
