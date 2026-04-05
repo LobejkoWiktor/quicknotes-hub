@@ -69,6 +69,11 @@ const defaultBlock = (type: Block['type'] = 'paragraph'): Block => {
 const seedFolderId = uid();
 const seedPageId = uid();
 
+const seedBlocks: Block[] = [
+  { id: uid(), type: 'h1', data: { text: 'Welcome to your Wiki' } },
+  { id: uid(), type: 'paragraph', data: { text: 'Start writing here. Use the toolbar to add different block types.' } },
+];
+
 export const useWikiStore = create<WikiState>((set, get) => ({
   folders: [{ id: seedFolderId, name: 'Getting Started', position: 0, isOpen: true }],
   pages: [{
@@ -76,13 +81,11 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     folderId: seedFolderId,
     title: 'Welcome',
     position: 0,
-    blocks: [
-      { id: uid(), type: 'h1', data: { text: 'Welcome to your Wiki' } },
-      { id: uid(), type: 'paragraph', data: { text: 'Start writing here. Use the toolbar to add different block types.' } },
-    ],
+    blocks: seedBlocks,
   }],
   activePageId: seedPageId,
   searchQuery: '',
+  savedBlocksMap: { [seedPageId]: structuredClone(seedBlocks) },
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setActivePage: (id) => set({ activePageId: id }),
