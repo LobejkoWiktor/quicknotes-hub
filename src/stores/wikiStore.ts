@@ -26,6 +26,8 @@ interface WikiState {
   pages: Page[];
   activePageId: string | null;
   searchQuery: string;
+  /** Snapshot of blocks at last save, keyed by pageId */
+  savedBlocksMap: Record<string, Block[]>;
 
   setSearchQuery: (q: string) => void;
   setActivePage: (id: string | null) => void;
@@ -46,6 +48,9 @@ interface WikiState {
   deleteBlock: (pageId: string, blockId: string) => void;
   changeBlockType: (pageId: string, blockId: string, type: Block['type']) => void;
   reorderBlocks: (pageId: string, fromIndex: number, toIndex: number) => void;
+
+  savePageContent: (pageId: string) => void;
+  hasUnsavedChanges: (pageId: string) => boolean;
 }
 
 const uid = () => crypto.randomUUID();
@@ -64,6 +69,11 @@ const defaultBlock = (type: Block['type'] = 'paragraph'): Block => {
 const seedFolderId = uid();
 const seedPageId = uid();
 
+const seedBlocks: Block[] = [
+  { id: uid(), type: 'h1', data: { text: 'Welcome to your Wiki' } },
+  { id: uid(), type: 'paragraph', data: { text: 'Start writing here. Use the toolbar to add different block types.' } },
+];
+
 export const useWikiStore = create<WikiState>((set, get) => ({
   folders: [{ id: seedFolderId, name: 'Getting Started', position: 0, isOpen: true }],
   pages: [{
@@ -71,13 +81,11 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     folderId: seedFolderId,
     title: 'Welcome',
     position: 0,
-    blocks: [
-      { id: uid(), type: 'h1', data: { text: 'Welcome to your Wiki' } },
-      { id: uid(), type: 'paragraph', data: { text: 'Start writing here. Use the toolbar to add different block types.' } },
-    ],
+    blocks: seedBlocks,
   }],
   activePageId: seedPageId,
   searchQuery: '',
+  savedBlocksMap: { [seedPageId]: structuredClone(seedBlocks) },
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setActivePage: (id) => set({ activePageId: id }),
@@ -106,14 +114,19 @@ export const useWikiStore = create<WikiState>((set, get) => ({
   addPage: (folderId) => {
     const s = get();
     const folderPages = s.pages.filter((p) => p.folderId === folderId);
+    const initialBlocks = [defaultBlock('paragraph')];
     const newPage: Page = {
       id: uid(),
       folderId,
       title: 'Untitled',
       position: folderPages.length,
-      blocks: [defaultBlock('paragraph')],
+      blocks: initialBlocks,
     };
-    set({ pages: [...s.pages, newPage], activePageId: newPage.id });
+    set({
+      pages: [...s.pages, newPage],
+      activePageId: newPage.id,
+      savedBlocksMap: { ...s.savedBlocksMap, [newPage.id]: structuredClone(initialBlocks) },
+    });
   },
   renamePage: (id, title) => set((s) => ({
     pages: s.pages.map((p) => p.id === id ? { ...p, title } : p),
@@ -176,4 +189,19 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       return { ...p, blocks };
     }),
   })),
+
+  savePageContent: (pageId) => set((s) => {
+    const page = s.pages.find((p) => p.id === pageId);
+    if (!page) return s;
+    return { savedBlocksMap: { ...s.savedBlocksMap, [pageId]: structuredClone(page.blocks) } };
+  }),
+
+  hasUnsavedChanges: (pageId) => {
+    const s = get();
+    const page = s.pages.find((p) => p.id === pageId);
+    if (!page) return false;
+    const saved = s.savedBlocksMap[pageId];
+    if (!saved) return page.blocks.length > 0;
+    return JSON.stringify(page.blocks) !== JSON.stringify(saved);
+  },
 }));
