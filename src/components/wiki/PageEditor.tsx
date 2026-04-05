@@ -81,14 +81,11 @@ const PageEditor = () => {
     [unsaved, activePageId, setActivePage],
   );
 
-  // Override setActivePage globally so sidebar navigations trigger warning
+  // Expose handleNavigate so the sidebar can use it
+  // Store in a ref to avoid re-render loops
   useEffect(() => {
-    // We patch the store's setActivePage temporarily
-    // This is a lightweight approach; a middleware would be cleaner for production
-    useWikiStore.setState({ setActivePage: handleNavigate } as any);
-    return () => {
-      useWikiStore.setState({ setActivePage: (id: string | null) => useWikiStore.setState({ activePageId: id }) } as any);
-    };
+    (window as any).__wikiNavigate = handleNavigate;
+    return () => { delete (window as any).__wikiNavigate; };
   }, [handleNavigate]);
 
   const handleSave = useCallback(() => {
