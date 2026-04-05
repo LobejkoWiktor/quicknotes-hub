@@ -26,6 +26,8 @@ interface WikiState {
   pages: Page[];
   activePageId: string | null;
   searchQuery: string;
+  /** Snapshot of blocks at last save, keyed by pageId */
+  savedBlocksMap: Record<string, Block[]>;
 
   setSearchQuery: (q: string) => void;
   setActivePage: (id: string | null) => void;
