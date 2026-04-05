@@ -146,14 +146,14 @@ const PageEditor = () => {
 
             {/* Unsaved changes indicator */}
             {unsaved && !showSaved && (
-              <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+              <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
                 Unsaved changes
               </Badge>
             )}
 
             {/* Saved confirmation */}
             {showSaved && (
-              <Badge variant="outline" className="text-xs text-green-600 border-green-300 gap-1">
+              <Badge variant="outline" className="text-xs text-primary border-primary/30 gap-1">
                 <Check className="h-3 w-3" />
                 Saved
               </Badge>
