@@ -6,6 +6,15 @@ import PageEditor from '@/components/wiki/PageEditor';
 
 const Index = () => {
   const user = useAuthStore((s) => s.user);
+  const isLoading = useAuthStore((s) => s.isLoading);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   if (!user) return <Login />;
 

@@ -8,12 +8,18 @@ const Login = () => {
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, signup, isLoading } = useAuthStore();
+  const [successMsg, setSuccessMsg] = useState('');
+  const { login, signup, isLoading, error, clearError } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
+    setSuccessMsg('');
     if (isSignup) {
-      await signup(email, password);
+      const res = await signup(email, password);
+      if (res?.needsConfirmation) {
+        setSuccessMsg('Check your email to confirm your account.');
+      }
     } else {
       await login(email, password);
     }
@@ -35,6 +41,18 @@ const Login = () => {
             {isSignup ? 'Start building your wiki' : 'Sign in to your wiki'}
           </p>
         </div>
+
+        {error && (
+          <div className="p-3 text-sm font-medium bg-destructive/15 text-destructive rounded-md">
+            {error}
+          </div>
+        )}
+        
+        {successMsg && (
+          <div className="p-3 text-sm font-medium bg-green-500/15 text-green-600 dark:text-green-400 rounded-md">
+            {successMsg}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -60,7 +78,11 @@ const Login = () => {
         <div className="text-center">
           <button
             type="button"
-            onClick={() => setIsSignup(!isSignup)}
+            onClick={() => {
+              setIsSignup(!isSignup);
+              clearError();
+              setSuccessMsg('');
+            }}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
