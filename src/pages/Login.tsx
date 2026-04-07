@@ -19,6 +19,7 @@ const Login = () => {
       const res = await signup(email, password);
       if (res?.needsConfirmation) {
         setSuccessMsg('Check your email to confirm your account.');
+        setIsSignup(false);
       }
     } else {
       await login(email, password);

@@ -40,20 +40,23 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   signup: async (email, password) => {
     set({ isLoading: true, error: null });
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        emailRedirectTo: 'https://salestwin-kb.vercel.app/'
+      }
+    });
     if (error) {
       set({ isLoading: false, error: error.message });
       return { needsConfirmation: false };
     }
-    const u = data.user;
-    // If identities is empty, email confirmation is required
-    const needsConfirmation = !u || (u.identities?.length === 0);
-    if (!needsConfirmation && u) {
-      set({ user: { id: u.id, email: u.email ?? '' }, isLoading: false });
-    } else {
-      set({ isLoading: false });
-    }
-    return { needsConfirmation };
+    
+    // We do not log them in. Ensure local state remains empty so they must confirm and login
+    await supabase.auth.signOut();
+    set({ user: null, isLoading: false });
+    
+    return { needsConfirmation: true };
   },
 
   logout: async () => {
