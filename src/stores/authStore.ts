@@ -59,6 +59,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     await supabase.auth.signOut();
     set({ user: null });
+    import('./wikiStore').then(({ useWikiStore }) => {
+      useWikiStore.getState().clearWikiData();
+    });
   },
 
   initAuth: async () => {
@@ -77,6 +80,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null;
       set({ user: u ? { id: u.id, email: u.email ?? '' } : null });
+      if (!u) {
+        import('./wikiStore').then(({ useWikiStore }) => {
+          useWikiStore.getState().clearWikiData();
+        });
+      }
     });
 
     // Return unsubscribe function for cleanup

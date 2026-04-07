@@ -35,6 +35,7 @@ interface WikiState {
   
   setSearchQuery: (q: string) => void;
   setActivePage: (id: string | null) => void;
+  clearWikiData: () => void;
 
   addFolder: (name: string) => Promise<void>;
   renameFolder: (id: string, name: string) => void;
@@ -42,7 +43,7 @@ interface WikiState {
   toggleFolder: (id: string) => void;
   reorderFolders: (fromIndex: number, toIndex: number) => void;
 
-  addPage: (folderId: string) => void;
+  addPage: (folderId: string) => Promise<void>;
   renamePage: (id: string, title: string) => void;
   deletePage: (id: string) => void;
   reorderPages: (folderId: string, fromIndex: number, toIndex: number) => void;
@@ -88,8 +89,8 @@ export const useWikiStore = create<WikiState>((set, get) => ({
 
   loadWikiData: async (userId) => {
     const [{ data: dbFolders }, { data: dbPages }] = await Promise.all([
-      supabase.from('folders').select('*').eq('user_id', userId).order('position', { ascending: true }),
-      supabase.from('pages').select('*').eq('user_id', userId).order('position', { ascending: true }),
+      supabase.from('folders').select('*').order('position', { ascending: true }),
+      supabase.from('pages').select('*').order('position', { ascending: true }),
     ]);
 
     const folders: Folder[] = (dbFolders || []).map(f => ({
@@ -158,7 +159,10 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     return { folders: arr.map((f, i) => ({ ...f, position: i })) };
   }),
 
-  addPage: (folderId) => {
+  addPage: async (folderId) => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+
     const s = get();
     const folderPages = s.pages.filter((p) => p.folderId === folderId);
     const initialBlocks = [defaultBlock('paragraph')];
@@ -173,6 +177,15 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       pages: [...s.pages, newPage],
       activePageId: newPage.id,
       savedBlocksMap: { ...s.savedBlocksMap, [newPage.id]: structuredClone(initialBlocks) },
+    });
+
+    await supabase.from('pages').insert({
+      id: newPage.id,
+      user_id: userId,
+      folder_id: newPage.folderId,
+      title: newPage.title,
+      blocks: newPage.blocks as any,
+      position: newPage.position,
     });
   },
   renamePage: (id, title) => set((s) => ({
@@ -268,4 +281,13 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     if (!saved) return page.blocks.length > 0;
     return JSON.stringify(page.blocks) !== JSON.stringify(saved);
   },
+
+  clearWikiData: () => set({
+    folders: [],
+    pages: [],
+    activePageId: null,
+    searchQuery: '',
+    savedBlocksMap: {},
+    isDataLoaded: false,
+  }),
 }));
