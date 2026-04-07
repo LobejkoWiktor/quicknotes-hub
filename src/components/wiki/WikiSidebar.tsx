@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useWikiStore, type Folder } from '@/stores/wikiStore';
 import { useAuthStore } from '@/stores/authStore';
+import { usePresenceStore } from '@/stores/presenceStore';
 import {
   ChevronRight, ChevronDown, FolderIcon, FileText,
   Plus, Trash2, LogOut, MoreHorizontal, PenLine,
@@ -18,6 +19,15 @@ const WikiSidebar = () => {
     deletePage, toggleFolder, renameFolder, renamePage,
   } = useWikiStore();
   const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const releaseLock = usePresenceStore((s) => s.releaseLock);
+
+  const handleLogout = () => {
+    if (activePageId && user) {
+      releaseLock(activePageId, user.id);
+    }
+    logout();
+  };
 
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -118,7 +128,7 @@ const WikiSidebar = () => {
 
       <div className="p-3 border-t border-border">
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="flex items-center gap-2 w-full px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-wiki-hover rounded-md transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" />
