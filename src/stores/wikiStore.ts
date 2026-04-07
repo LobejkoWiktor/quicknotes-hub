@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from './authStore';
 
 export interface Block {
   id: string;
@@ -26,13 +28,15 @@ interface WikiState {
   pages: Page[];
   activePageId: string | null;
   searchQuery: string;
-  /** Snapshot of blocks at last save, keyed by pageId */
   savedBlocksMap: Record<string, Block[]>;
+  isDataLoaded: boolean;
 
+  loadWikiData: (userId: string) => Promise<void>;
+  
   setSearchQuery: (q: string) => void;
   setActivePage: (id: string | null) => void;
 
-  addFolder: (name: string) => void;
+  addFolder: (name: string) => Promise<void>;
   renameFolder: (id: string, name: string) => void;
   deleteFolder: (id: string) => void;
   toggleFolder: (id: string) => void;
@@ -49,7 +53,7 @@ interface WikiState {
   changeBlockType: (pageId: string, blockId: string, type: Block['type']) => void;
   reorderBlocks: (pageId: string, fromIndex: number, toIndex: number) => void;
 
-  savePageContent: (pageId: string) => void;
+  savePageContent: (pageId: string) => Promise<void>;
   hasUnsavedChanges: (pageId: string) => boolean;
 }
 
@@ -75,24 +79,67 @@ const seedBlocks: Block[] = [
 ];
 
 export const useWikiStore = create<WikiState>((set, get) => ({
-  folders: [{ id: seedFolderId, name: 'Getting Started', position: 0, isOpen: true }],
-  pages: [{
-    id: seedPageId,
-    folderId: seedFolderId,
-    title: 'Welcome',
-    position: 0,
-    blocks: seedBlocks,
-  }],
-  activePageId: seedPageId,
+  folders: [],
+  pages: [],
+  activePageId: null,
   searchQuery: '',
-  savedBlocksMap: { [seedPageId]: structuredClone(seedBlocks) },
+  savedBlocksMap: {},
+  isDataLoaded: false,
+
+  loadWikiData: async (userId) => {
+    const [{ data: dbFolders }, { data: dbPages }] = await Promise.all([
+      supabase.from('folders').select('*').eq('user_id', userId).order('position', { ascending: true }),
+      supabase.from('pages').select('*').eq('user_id', userId).order('position', { ascending: true }),
+    ]);
+
+    const folders: Folder[] = (dbFolders || []).map(f => ({
+      id: f.id,
+      name: f.name,
+      position: f.position,
+      isOpen: true,
+    }));
+
+    const pages: Page[] = (dbPages || []).map(p => ({
+      id: p.id,
+      folderId: p.folder_id,
+      title: p.title,
+      position: p.position,
+      blocks: typeof p.blocks === 'string' ? JSON.parse(p.blocks) : (p.blocks || []),
+    }));
+
+    const savedBlocksMap: Record<string, Block[]> = {};
+    pages.forEach(p => {
+      savedBlocksMap[p.id] = structuredClone(p.blocks);
+    });
+
+    set({
+      folders,
+      pages,
+      savedBlocksMap,
+      isDataLoaded: true,
+      activePageId: pages.length > 0 ? pages[0].id : null,
+    });
+  },
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setActivePage: (id) => set({ activePageId: id }),
 
-  addFolder: (name) => set((s) => ({
-    folders: [...s.folders, { id: uid(), name, position: s.folders.length, isOpen: true }],
-  })),
+  addFolder: async (name) => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+
+    const s = get();
+    const newFolder = { id: uid(), name, position: s.folders.length, isOpen: true };
+    
+    set({ folders: [...s.folders, newFolder] });
+
+    await supabase.from('folders').insert({
+      id: newFolder.id,
+      user_id: userId,
+      name: newFolder.name,
+      position: newFolder.position,
+    });
+  },
   renameFolder: (id, name) => set((s) => ({
     folders: s.folders.map((f) => f.id === id ? { ...f, name } : f),
   })),
@@ -193,11 +240,25 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     }),
   })),
 
-  savePageContent: (pageId) => set((s) => {
+  savePageContent: async (pageId) => {
+    const userId = useAuthStore.getState().user?.id;
+    if (!userId) return;
+
+    const s = get();
     const page = s.pages.find((p) => p.id === pageId);
-    if (!page) return s;
-    return { savedBlocksMap: { ...s.savedBlocksMap, [pageId]: structuredClone(page.blocks) } };
-  }),
+    if (!page) return;
+
+    set({ savedBlocksMap: { ...s.savedBlocksMap, [pageId]: structuredClone(page.blocks) } });
+
+    await supabase.from('pages').upsert({
+      id: page.id,
+      user_id: userId,
+      folder_id: page.folderId,
+      title: page.title,
+      blocks: page.blocks as any, // casting to any so supabase types don't complain about jsonb structure
+      position: page.position,
+    });
+  },
 
   hasUnsavedChanges: (pageId) => {
     const s = get();
