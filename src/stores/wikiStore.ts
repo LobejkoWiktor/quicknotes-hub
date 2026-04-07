@@ -43,7 +43,7 @@ interface WikiState {
   deletePage: (id: string) => void;
   reorderPages: (folderId: string, fromIndex: number, toIndex: number) => void;
 
-  addBlock: (pageId: string, type: Block['type'], afterBlockId?: string) => void;
+  addBlock: (pageId: string, type: Block['type'], afterBlockId?: string) => string;
   updateBlock: (pageId: string, blockId: string, data: Record<string, unknown>) => void;
   deleteBlock: (pageId: string, blockId: string) => void;
   changeBlockType: (pageId: string, blockId: string, type: Block['type']) => void;
@@ -143,17 +143,20 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     return { pages: [...otherPages, ...folderPages.map((p, i) => ({ ...p, position: i }))] };
   }),
 
-  addBlock: (pageId, type, afterBlockId) => set((s) => ({
-    pages: s.pages.map((p) => {
-      if (p.id !== pageId) return p;
-      const newBlock = defaultBlock(type);
-      if (!afterBlockId) return { ...p, blocks: [...p.blocks, newBlock] };
-      const idx = p.blocks.findIndex((b) => b.id === afterBlockId);
-      const blocks = [...p.blocks];
-      blocks.splice(idx + 1, 0, newBlock);
-      return { ...p, blocks };
-    }),
-  })),
+  addBlock: (pageId, type, afterBlockId) => {
+    const newBlock = defaultBlock(type);
+    set((s) => ({
+      pages: s.pages.map((p) => {
+        if (p.id !== pageId) return p;
+        if (!afterBlockId) return { ...p, blocks: [...p.blocks, newBlock] };
+        const idx = p.blocks.findIndex((b) => b.id === afterBlockId);
+        const blocks = [...p.blocks];
+        blocks.splice(idx + 1, 0, newBlock);
+        return { ...p, blocks };
+      }),
+    }));
+    return newBlock.id;
+  },
   updateBlock: (pageId, blockId, data) => set((s) => ({
     pages: s.pages.map((p) =>
       p.id !== pageId ? p : {

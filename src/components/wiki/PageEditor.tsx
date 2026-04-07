@@ -47,6 +47,12 @@ const PageEditor = () => {
 
   const [showSaved, setShowSaved] = useState(false);
   const [pendingNavId, setPendingNavId] = useState<string | null>(null);
+  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+
+  const handleAddBlock = useCallback((pageId: string, type: Block['type'], afterBlockId?: string) => {
+    const newId = addBlock(pageId, type, afterBlockId);
+    setFocusBlockId(newId);
+  }, [addBlock]);
 
   // Presence heartbeat
   useEffect(() => {
@@ -174,7 +180,7 @@ const PageEditor = () => {
           {blockTypes.map(({ type, icon: Icon, label }) => (
             <button
               key={type}
-              onClick={() => addBlock(page.id, type)}
+              onClick={() => handleAddBlock(page.id, type)}
               className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-background rounded-md transition-colors"
               title={`Add ${label}`}
             >
@@ -191,9 +197,10 @@ const PageEditor = () => {
               key={block.id}
               block={{ ...block, data: { ...block.data, index } }}
               index={index}
+              autoFocus={focusBlockId === block.id}
               onUpdate={(data) => updateBlock(page.id, block.id, data)}
               onDelete={() => deleteBlock(page.id, block.id)}
-              onAddAfter={(type) => addBlock(page.id, type, block.id)}
+              onAddAfter={(type) => handleAddBlock(page.id, type, block.id)}
             />
           ))}
         </div>

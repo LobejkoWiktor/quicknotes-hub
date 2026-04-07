@@ -9,10 +9,26 @@ interface BlockRendererProps {
   onDelete: () => void;
   onAddAfter: (type: Block['type']) => void;
   index: number;
+  autoFocus?: boolean;
 }
 
-const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter }: BlockRendererProps) => {
+const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus }: BlockRendererProps) => {
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (autoFocus && ref.current) {
+      // Focus the newly active block
+      ref.current.focus();
+      
+      // Move cursor to the end in case there is text (for checklists with checkbox clicked, it might not be empty, but usually new blocks are empty)
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(ref.current);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  }, [autoFocus, block.id]);
 
   useEffect(() => {
     if (ref.current && ref.current.textContent !== (block.data.text as string)) {
@@ -28,8 +44,12 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter }: BlockRendererP
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onAddAfter('paragraph');
+      if (['bullet', 'numbered', 'checklist'].includes(block.type)) {
+        e.preventDefault();
+        onAddAfter(block.type);
+      }
+      // For standard text (paragraph, h1, etc.), do not intercept Enter.
+      // The browser's native contentEditable behavior will handle creating a newline.
     }
     if (e.key === 'Backspace' && !ref.current?.textContent) {
       e.preventDefault();
