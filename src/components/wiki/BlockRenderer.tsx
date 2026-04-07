@@ -10,9 +10,10 @@ interface BlockRendererProps {
   onAddAfter: (type: Block['type']) => void;
   index: number;
   autoFocus?: boolean;
+  readOnly?: boolean;
 }
 
-const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus }: BlockRendererProps) => {
+const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus, readOnly }: BlockRendererProps) => {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,6 +44,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (readOnly) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       if (['bullet', 'numbered', 'checklist'].includes(block.type)) {
         e.preventDefault();
@@ -65,11 +67,11 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         return (
           <div
             ref={ref}
-            contentEditable
+            contentEditable={!readOnly}
             suppressContentEditableWarning
             onInput={handleInput}
             onKeyDown={handleKeyDown}
-            data-placeholder="Heading 1"
+            data-placeholder={readOnly ? '' : "Heading 1"}
             className={`${baseClasses} text-3xl font-bold tracking-tight`}
           />
         );
@@ -77,11 +79,11 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         return (
           <div
             ref={ref}
-            contentEditable
+            contentEditable={!readOnly}
             suppressContentEditableWarning
             onInput={handleInput}
             onKeyDown={handleKeyDown}
-            data-placeholder="Heading 2"
+            data-placeholder={readOnly ? '' : "Heading 2"}
             className={`${baseClasses} text-2xl font-semibold tracking-tight`}
           />
         );
@@ -89,11 +91,11 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         return (
           <div
             ref={ref}
-            contentEditable
+            contentEditable={!readOnly}
             suppressContentEditableWarning
             onInput={handleInput}
             onKeyDown={handleKeyDown}
-            data-placeholder="Heading 3"
+            data-placeholder={readOnly ? '' : "Heading 3"}
             className={`${baseClasses} text-xl font-semibold`}
           />
         );
@@ -103,11 +105,11 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
             <span className="mt-2 h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
             <div
               ref={ref}
-              contentEditable
+              contentEditable={!readOnly}
               suppressContentEditableWarning
               onInput={handleInput}
               onKeyDown={handleKeyDown}
-              data-placeholder="List item"
+              data-placeholder={readOnly ? '' : "List item"}
               className={`${baseClasses} flex-1`}
             />
           </div>
@@ -120,11 +122,11 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
             </span>
             <div
               ref={ref}
-              contentEditable
+              contentEditable={!readOnly}
               suppressContentEditableWarning
               onInput={handleInput}
               onKeyDown={handleKeyDown}
-              data-placeholder="List item"
+              data-placeholder={readOnly ? '' : "List item"}
               className={`${baseClasses} flex-1`}
             />
           </div>
@@ -135,36 +137,39 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
             <input
               type="checkbox"
               checked={!!block.data.checked}
-              onChange={(e) => onUpdate({ checked: e.target.checked })}
+              onChange={(e) => !readOnly && onUpdate({ checked: e.target.checked })}
+              disabled={readOnly}
               className="mt-1 h-4 w-4 rounded border-border accent-primary"
             />
             <div
               ref={ref}
-              contentEditable
+              contentEditable={!readOnly}
               suppressContentEditableWarning
               onInput={handleInput}
               onKeyDown={handleKeyDown}
-              data-placeholder="To-do"
+              data-placeholder={readOnly ? '' : "To-do"}
               className={`${baseClasses} flex-1 ${block.data.checked ? 'line-through text-muted-foreground' : ''}`}
             />
           </div>
         );
       case 'table':
         return (
-          <TableBlock
-            rows={(block.data.rows as string[][]) || [['', ''], ['', '']]}
-            onChange={(rows) => onUpdate({ rows })}
-          />
+          <div className={readOnly ? 'pointer-events-none' : ''}>
+            <TableBlock
+              rows={(block.data.rows as string[][]) || [['', ''], ['', '']]}
+              onChange={(rows) => !readOnly && onUpdate({ rows })}
+            />
+          </div>
         );
       default:
         return (
           <div
             ref={ref}
-            contentEditable
+            contentEditable={!readOnly}
             suppressContentEditableWarning
             onInput={handleInput}
             onKeyDown={handleKeyDown}
-            data-placeholder="Type something..."
+            data-placeholder={readOnly ? '' : "Type something..."}
             className={`${baseClasses} text-base leading-relaxed`}
           />
         );
@@ -173,7 +178,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
 
   return (
     <div className="group relative flex items-start gap-1 py-1 -ml-7">
-      <div className="flex items-center gap-0.5 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className={`flex items-center gap-0.5 pt-1 opacity-0 ${readOnly ? 'hidden' : 'group-hover:opacity-100'} transition-opacity`}>
         <button className="p-0.5 rounded hover:bg-wiki-hover cursor-grab text-muted-foreground/40">
           <GripVertical className="h-4 w-4" />
         </button>
@@ -181,12 +186,14 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
       <div className="flex-1 min-w-0">
         {renderEditable()}
       </div>
-      <button
-        onClick={onDelete}
-        className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all mt-0.5"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+      {!readOnly && (
+        <button
+          onClick={onDelete}
+          className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all mt-0.5"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 };

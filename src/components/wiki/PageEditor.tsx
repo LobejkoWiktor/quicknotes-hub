@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useWikiStore, type Block } from '@/stores/wikiStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePresenceStore } from '@/stores/presenceStore';
@@ -39,11 +39,12 @@ const PRESENCE_INTERVAL = 15_000;
 const PageEditor = () => {
   const { pages, activePageId, renamePage, addBlock, updateBlock, deleteBlock, savePageContent, hasUnsavedChanges } = useWikiStore();
   const user = useAuthStore((s) => s.user);
-  const { setPresence, getOtherEditors } = usePresenceStore();
+  const { lockedBy, checkLock, claimLock, releaseLock } = usePresenceStore();
+  const isLocked = lockedBy !== null;
+  const weHaveLockRef = useRef(false);
 
   const page = pages.find((p) => p.id === activePageId);
   const unsaved = activePageId ? hasUnsavedChanges(activePageId) : false;
-  const otherEditors = activePageId && user ? getOtherEditors(activePageId, user.id) : [];
 
   const [showSaved, setShowSaved] = useState(false);
   const [pendingNavId, setPendingNavId] = useState<string | null>(null);
@@ -54,15 +55,51 @@ const PageEditor = () => {
     setFocusBlockId(newId);
   }, [addBlock]);
 
-  // Presence heartbeat
+  // Lock polling and heartbeat
   useEffect(() => {
     if (!activePageId || !user) return;
-    setPresence(user.id, user.email, activePageId);
-    const interval = setInterval(() => {
-      setPresence(user.id, user.email, activePageId);
-    }, PRESENCE_INTERVAL);
-    return () => clearInterval(interval);
-  }, [activePageId, user, setPresence]);
+    
+    let isCancelled = false;
+
+    const runChecks = async () => {
+      if (isCancelled) return;
+      const locked = await checkLock(activePageId, user.id);
+      if (isCancelled) return;
+
+      if (!locked) {
+        await claimLock(activePageId, user.id);
+        weHaveLockRef.current = true;
+      } else {
+        weHaveLockRef.current = false;
+      }
+    };
+
+    runChecks();
+    const pollInterval = setInterval(runChecks, 30_000);
+    const heartbeatInterval = setInterval(() => {
+       if (weHaveLockRef.current && activePageId && user) {
+         claimLock(activePageId, user.id);
+       }
+    }, 60_000);
+
+    const onUnload = () => {
+      if (weHaveLockRef.current && activePageId && user) {
+        releaseLock(activePageId, user.id);
+      }
+    };
+
+    window.addEventListener('beforeunload', onUnload);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(pollInterval);
+      clearInterval(heartbeatInterval);
+      window.removeEventListener('beforeunload', onUnload);
+      if (weHaveLockRef.current && activePageId && user) {
+        releaseLock(activePageId, user.id);
+      }
+    };
+  }, [activePageId, user, checkLock, claimLock, releaseLock]);
 
   // Warn on browser unload with unsaved changes
   useEffect(() => {
@@ -97,10 +134,14 @@ const PageEditor = () => {
   const handleSave = useCallback(() => {
     if (!activePageId) return;
     savePageContent(activePageId);
+    if (user && weHaveLockRef.current) {
+      releaseLock(activePageId, user.id);
+      weHaveLockRef.current = false;
+    }
     setShowSaved(true);
     toast.success('Page saved');
     setTimeout(() => setShowSaved(false), 2000);
-  }, [activePageId, savePageContent]);
+  }, [activePageId, savePageContent, user, releaseLock]);
 
   // Keyboard shortcut: Ctrl/Cmd + S
   useEffect(() => {
@@ -134,17 +175,28 @@ const PageEditor = () => {
             <Input
               value={page.title}
               onChange={(e) => renamePage(page.id, e.target.value)}
+              readOnly={isLocked}
               className="border-0 text-4xl font-bold tracking-tight h-auto py-2 px-0 focus-visible:ring-0 placeholder:text-muted-foreground/30 bg-transparent"
               placeholder="Untitled"
             />
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-4">
             {/* Presence indicator */}
-            {otherEditors.length > 0 && (
-              <Badge variant="secondary" className="gap-1 text-xs">
-                <Users className="h-3 w-3" />
-                Someone else is editing
-              </Badge>
+            {isLocked && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  <Users className="h-3 w-3" />
+                  Locked
+                </Badge>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-6 text-xs px-2"
+                  onClick={() => checkLock(activePageId!, user!.id)}
+                >
+                  Refresh Lock
+                </Button>
+              </div>
             )}
 
             {/* Unsaved changes indicator */}
@@ -166,7 +218,7 @@ const PageEditor = () => {
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={!unsaved}
+              disabled={!unsaved || isLocked}
               className="gap-1.5"
             >
               <Save className="h-3.5 w-3.5" />
@@ -176,8 +228,9 @@ const PageEditor = () => {
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-0.5 mt-4 mb-6 p-1 rounded-lg bg-muted/50 w-fit">
-          {blockTypes.map(({ type, icon: Icon, label }) => (
+        {!isLocked && (
+          <div className="flex items-center gap-0.5 mt-4 mb-6 p-1 rounded-lg bg-muted/50 w-fit">
+            {blockTypes.map(({ type, icon: Icon, label }) => (
             <button
               key={type}
               onClick={() => handleAddBlock(page.id, type)}
@@ -189,6 +242,7 @@ const PageEditor = () => {
             </button>
           ))}
         </div>
+        )}
 
         {/* Blocks */}
         <div className="pl-7 space-y-0.5">
@@ -198,6 +252,7 @@ const PageEditor = () => {
               block={{ ...block, data: { ...block.data, index } }}
               index={index}
               autoFocus={focusBlockId === block.id}
+              readOnly={isLocked}
               onUpdate={(data) => updateBlock(page.id, block.id, data)}
               onDelete={() => deleteBlock(page.id, block.id)}
               onAddAfter={(type) => handleAddBlock(page.id, type, block.id)}
