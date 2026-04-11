@@ -37,7 +37,7 @@ const blockTypes: { type: Block['type']; icon: React.ElementType; label: string 
 const PRESENCE_INTERVAL = 15_000;
 
 const PageEditor = () => {
-  const { pages, activePageId, renamePage, addBlock, updateBlock, deleteBlock, savePageContent, hasUnsavedChanges } = useWikiStore();
+  const { pages, activePageId, renamePage, addBlock, updateBlock, deleteBlock, changeBlockType, savePageContent, hasUnsavedChanges } = useWikiStore();
   const user = useAuthStore((s) => s.user);
   const { lockedBy, checkLock, claimLock, releaseLock } = usePresenceStore();
   const isLocked = lockedBy !== null;
@@ -278,6 +278,7 @@ const PageEditor = () => {
                   onUpdate={(data) => updateBlock(page.id, block.id, data)}
                   onDelete={() => deleteBlock(page.id, block.id)}
                   onAddAfter={(type, initialData) => handleAddBlock(page.id, type, block.id, initialData)}
+                  onChangeType={(type) => changeBlockType(page.id, block.id, type)}
                 />
               );
             });

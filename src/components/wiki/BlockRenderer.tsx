@@ -8,22 +8,27 @@ interface BlockRendererProps {
   onUpdate: (data: Record<string, unknown>) => void;
   onDelete: () => void;
   onAddAfter: (type: Block['type'], initialData?: Record<string, unknown>) => void;
+  onChangeType?: (type: Block['type']) => void;
   index: number;
   autoFocus?: boolean;
   readOnly?: boolean;
 }
 
-const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus, readOnly }: BlockRendererProps) => {
+const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, onChangeType, index, autoFocus, readOnly }: BlockRendererProps) => {
   const ref = useRef<HTMLDivElement>(null);
+  const isMorphing = useRef(false);
 
   useEffect(() => {
-    if (autoFocus && ref.current) {
+    if (autoFocus && ref.current && !isMorphing.current) {
       // Focus the newly active block
       ref.current.focus();
       
       // Move cursor to the end in case there is text (for checklists with checkbox clicked, it might not be empty, but usually new blocks are empty)
       const selection = window.getSelection();
       const range = document.createRange();
+      if (ref.current.childNodes.length === 0) {
+        ref.current.appendChild(document.createTextNode(''));
+      }
       range.selectNodeContents(ref.current);
       range.collapse(false);
       selection?.removeAllRanges();
@@ -35,11 +40,64 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
     if (ref.current && ref.current.textContent !== (block.data.text as string)) {
       ref.current.textContent = (block.data.text as string) || '';
     }
-  }, [block.id]); // only on mount/id change
+  }, [block.id, block.type]); // sync text when type changes
+
+  useEffect(() => {
+    if (isMorphing.current && ref.current) {
+      isMorphing.current = false;
+      ref.current.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      if (ref.current.childNodes.length === 0) {
+        ref.current.appendChild(document.createTextNode(''));
+      }
+      range.selectNodeContents(ref.current);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  }, [block.type]);
 
   const handleInput = () => {
     if (ref.current) {
-      onUpdate({ text: ref.current.textContent || '' });
+      const text = ref.current.textContent || '';
+      
+      if (block.type === 'paragraph') {
+        let newType: Block['type'] | null = null;
+        let remainingText = text;
+
+        if (text.startsWith('# ')) {
+          newType = 'h1';
+          remainingText = text.slice(2);
+        } else if (text.startsWith('## ')) {
+          newType = 'h2';
+          remainingText = text.slice(3);
+        } else if (text.startsWith('### ')) {
+          newType = 'h3';
+          remainingText = text.slice(4);
+        } else if (text.startsWith('- ') || text.startsWith('* ')) {
+          newType = 'bullet';
+          remainingText = text.slice(2);
+        } else if (text.startsWith('1. ')) {
+          newType = 'numbered';
+          remainingText = text.slice(3);
+        } else if (text.startsWith('[] ')) {
+          newType = 'checklist';
+          remainingText = text.slice(3);
+        }
+
+        if (newType) {
+          ref.current.textContent = remainingText;
+          onUpdate({ text: remainingText });
+          if (onChangeType) {
+            isMorphing.current = true;
+            onChangeType(newType);
+          }
+          return;
+        }
+      }
+
+      onUpdate({ text });
     }
   };
 
@@ -82,7 +140,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
     switch (block.type) {
       case 'h1':
         return (
-          <div
+          <div key={block.type}
             ref={ref}
             contentEditable={!readOnly}
             suppressContentEditableWarning
@@ -94,7 +152,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'h2':
         return (
-          <div
+          <div key={block.type}
             ref={ref}
             contentEditable={!readOnly}
             suppressContentEditableWarning
@@ -106,7 +164,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'h3':
         return (
-          <div
+          <div key={block.type}
             ref={ref}
             contentEditable={!readOnly}
             suppressContentEditableWarning
@@ -118,7 +176,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'bullet':
         return (
-          <div className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
+          <div key={block.type} className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
             <span className={`mt-2 h-1.5 w-1.5 shrink-0 ${
               (block.data.indent as number || 0) % 3 === 1 ? 'border border-foreground/60 rounded-full bg-transparent'
               : (block.data.indent as number || 0) % 3 === 2 ? 'bg-foreground/60'
@@ -137,7 +195,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'numbered':
         return (
-          <div className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
+          <div key={block.type} className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
             <span className="text-muted-foreground text-sm mt-0.5 min-w-[1.2em] text-right shrink-0">
               {(block.data.index as number || 0) + 1}.
             </span>
@@ -154,7 +212,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'checklist':
         return (
-          <div className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
+          <div key={block.type} className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
             <input
               type="checkbox"
               checked={!!block.data.checked}
@@ -175,7 +233,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'table':
         return (
-          <div className={readOnly ? 'pointer-events-none' : ''}>
+          <div key={block.type} className={readOnly ? 'pointer-events-none' : ''}>
             <TableBlock
               rows={(block.data.rows as string[][]) || [['', ''], ['', '']]}
               onChange={(rows) => !readOnly && onUpdate({ rows })}
@@ -184,7 +242,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       default:
         return (
-          <div
+          <div key={block.type}
             ref={ref}
             contentEditable={!readOnly}
             suppressContentEditableWarning
