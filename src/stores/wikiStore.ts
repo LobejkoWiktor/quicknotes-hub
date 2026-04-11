@@ -48,7 +48,7 @@ interface WikiState {
   deletePage: (id: string) => void;
   reorderPages: (folderId: string, fromIndex: number, toIndex: number) => void;
 
-  addBlock: (pageId: string, type: Block['type'], afterBlockId?: string) => string;
+  addBlock: (pageId: string, type: Block['type'], afterBlockId?: string, initialData?: Record<string, unknown>) => string;
   updateBlock: (pageId: string, blockId: string, data: Record<string, unknown>) => void;
   deleteBlock: (pageId: string, blockId: string) => void;
   changeBlockType: (pageId: string, blockId: string, type: Block['type']) => void;
@@ -203,8 +203,11 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     return { pages: [...otherPages, ...folderPages.map((p, i) => ({ ...p, position: i }))] };
   }),
 
-  addBlock: (pageId, type, afterBlockId) => {
+  addBlock: (pageId, type, afterBlockId, initialData) => {
     const newBlock = defaultBlock(type);
+    if (initialData) {
+      newBlock.data = { ...newBlock.data, ...initialData };
+    }
     set((s) => ({
       pages: s.pages.map((p) => {
         if (p.id !== pageId) return p;

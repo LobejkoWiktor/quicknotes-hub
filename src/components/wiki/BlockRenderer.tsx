@@ -7,7 +7,7 @@ interface BlockRendererProps {
   block: Block;
   onUpdate: (data: Record<string, unknown>) => void;
   onDelete: () => void;
-  onAddAfter: (type: Block['type']) => void;
+  onAddAfter: (type: Block['type'], initialData?: Record<string, unknown>) => void;
   index: number;
   autoFocus?: boolean;
   readOnly?: boolean;
@@ -45,10 +45,24 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (readOnly) return;
+    
+    if (e.key === 'Tab' && ['bullet', 'numbered', 'checklist'].includes(block.type)) {
+      e.preventDefault();
+      const currentIndent = (block.data.indent as number) || 0;
+      if (e.shiftKey) {
+        if (currentIndent > 0) {
+          onUpdate({ indent: currentIndent - 1 });
+        }
+      } else {
+        onUpdate({ indent: Math.min(currentIndent + 1, 4) });
+      }
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       if (['bullet', 'numbered', 'checklist'].includes(block.type)) {
         e.preventDefault();
-        onAddAfter(block.type);
+        onAddAfter(block.type, { indent: block.data.indent });
       } else if (['h1', 'h2', 'h3'].includes(block.type)) {
         e.preventDefault();
         onAddAfter('paragraph');
@@ -104,8 +118,12 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'bullet':
         return (
-          <div className="flex items-start gap-2">
-            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-foreground/60 shrink-0" />
+          <div className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
+            <span className={`mt-2 h-1.5 w-1.5 shrink-0 ${
+              (block.data.indent as number || 0) % 3 === 1 ? 'border border-foreground/60 rounded-full bg-transparent'
+              : (block.data.indent as number || 0) % 3 === 2 ? 'bg-foreground/60'
+              : 'rounded-full bg-foreground/60'
+            }`} />
             <div
               ref={ref}
               contentEditable={!readOnly}
@@ -119,7 +137,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'numbered':
         return (
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
             <span className="text-muted-foreground text-sm mt-0.5 min-w-[1.2em] text-right shrink-0">
               {(block.data.index as number || 0) + 1}.
             </span>
@@ -136,7 +154,7 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
         );
       case 'checklist':
         return (
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2" style={{ marginLeft: `${(block.data.indent as number || 0) * 1.5}rem` }}>
             <input
               type="checkbox"
               checked={!!block.data.checked}

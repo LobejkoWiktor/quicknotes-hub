@@ -50,8 +50,8 @@ const PageEditor = () => {
   const [pendingNavId, setPendingNavId] = useState<string | null>(null);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
 
-  const handleAddBlock = useCallback((pageId: string, type: Block['type'], afterBlockId?: string) => {
-    const newId = addBlock(pageId, type, afterBlockId);
+  const handleAddBlock = useCallback((pageId: string, type: Block['type'], afterBlockId?: string, initialData?: Record<string, unknown>) => {
+    const newId = addBlock(pageId, type, afterBlockId, initialData);
     setFocusBlockId(newId);
   }, [addBlock]);
 
@@ -246,18 +246,42 @@ const PageEditor = () => {
 
         {/* Blocks */}
         <div className="pl-7 space-y-0.5">
-          {page.blocks.map((block, index) => (
-            <BlockRenderer
-              key={block.id}
-              block={{ ...block, data: { ...block.data, index } }}
-              index={index}
-              autoFocus={focusBlockId === block.id}
-              readOnly={isLocked}
-              onUpdate={(data) => updateBlock(page.id, block.id, data)}
-              onDelete={() => deleteBlock(page.id, block.id)}
-              onAddAfter={(type) => handleAddBlock(page.id, type, block.id)}
-            />
-          ))}
+          {(() => {
+            const listCounters: number[] = [];
+            
+            return page.blocks.map((block, index) => {
+              let listIndex = index;
+              const isList = ['bullet', 'numbered', 'checklist'].includes(block.type);
+              
+              if (isList) {
+                const indent = (block.data.indent as number) || 0;
+                // Reset counters for deeper nested levels
+                listCounters.length = indent + 1;
+                
+                if (block.type === 'numbered') {
+                  listCounters[indent] = (listCounters[indent] || 0) + 1;
+                  // listIndex is 0-based to match existing BlockRenderer logic (+1 on render)
+                  listIndex = listCounters[indent] - 1;
+                }
+              } else {
+                // Break list, reset counters entirely
+                listCounters.length = 0;
+              }
+
+              return (
+                <BlockRenderer
+                  key={block.id}
+                  block={{ ...block, data: { ...block.data, index: listIndex } }}
+                  index={index}
+                  autoFocus={focusBlockId === block.id}
+                  readOnly={isLocked}
+                  onUpdate={(data) => updateBlock(page.id, block.id, data)}
+                  onDelete={() => deleteBlock(page.id, block.id)}
+                  onAddAfter={(type, initialData) => handleAddBlock(page.id, type, block.id, initialData)}
+                />
+              );
+            });
+          })()}
         </div>
 
         {page.blocks.length === 0 && (
