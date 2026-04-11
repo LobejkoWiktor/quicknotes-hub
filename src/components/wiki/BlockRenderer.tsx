@@ -49,8 +49,11 @@ const BlockRenderer = ({ block, onUpdate, onDelete, onAddAfter, index, autoFocus
       if (['bullet', 'numbered', 'checklist'].includes(block.type)) {
         e.preventDefault();
         onAddAfter(block.type);
+      } else if (['h1', 'h2', 'h3'].includes(block.type)) {
+        e.preventDefault();
+        onAddAfter('paragraph');
       }
-      // For standard text (paragraph, h1, etc.), do not intercept Enter.
+      // For standard text (paragraph), do not intercept Enter.
       // The browser's native contentEditable behavior will handle creating a newline.
     }
     if (e.key === 'Backspace' && !ref.current?.textContent) {
