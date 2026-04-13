@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from './authStore';
 
+export type InlineText = {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  href?: string;
+};
+
 export interface Block {
   id: string;
   type: 'paragraph' | 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered' | 'checklist' | 'table';
@@ -65,9 +72,9 @@ const defaultBlock = (type: Block['type'] = 'paragraph'): Block => {
     return { id: uid(), type, data: { rows: [['', ''], ['', '']] } };
   }
   if (type === 'checklist') {
-    return { id: uid(), type, data: { text: '', checked: false } };
+    return { id: uid(), type, data: { content: [], checked: false } };
   }
-  return { id: uid(), type, data: { text: '' } };
+  return { id: uid(), type, data: { content: [] } };
 };
 
 // Seed data
@@ -75,8 +82,8 @@ const seedFolderId = uid();
 const seedPageId = uid();
 
 const seedBlocks: Block[] = [
-  { id: uid(), type: 'h1', data: { text: 'Welcome to your Wiki' } },
-  { id: uid(), type: 'paragraph', data: { text: 'Start writing here. Use the toolbar to add different block types.' } },
+  { id: uid(), type: 'h1', data: { content: [{ text: 'Welcome to your Wiki' }] } },
+  { id: uid(), type: 'paragraph', data: { content: [{ text: 'Start writing here. Use the toolbar to add different block types.' }] } },
 ];
 
 export const useWikiStore = create<WikiState>((set, get) => ({
@@ -100,13 +107,23 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       isOpen: true,
     }));
 
-    const pages: Page[] = (dbPages || []).map(p => ({
-      id: p.id,
-      folderId: p.folder_id,
-      title: p.title,
-      position: p.position,
-      blocks: typeof p.blocks === 'string' ? JSON.parse(p.blocks) : (p.blocks || []),
-    }));
+    const pages: Page[] = (dbPages || []).map(p => {
+      const blocks: Block[] = typeof p.blocks === 'string' ? JSON.parse(p.blocks) : (p.blocks || []);
+      // Migrate legacy text → content format
+      blocks.forEach(b => {
+        if (!Array.isArray(b.data.content) && typeof b.data.text === 'string') {
+          b.data.content = [{ text: b.data.text as string }];
+          delete b.data.text;
+        }
+      });
+      return {
+        id: p.id,
+        folderId: p.folder_id,
+        title: p.title,
+        position: p.position,
+        blocks,
+      };
+    });
 
     const savedBlocksMap: Record<string, Block[]> = {};
     pages.forEach(p => {
@@ -141,23 +158,35 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       position: newFolder.position,
     });
   },
-  renameFolder: (id, name) => set((s) => ({
-    folders: s.folders.map((f) => f.id === id ? { ...f, name } : f),
-  })),
-  deleteFolder: (id) => set((s) => ({
-    folders: s.folders.filter((f) => f.id !== id),
-    pages: s.pages.filter((p) => p.folderId !== id),
-    activePageId: s.activePageId && s.pages.find((p) => p.id === s.activePageId)?.folderId === id ? null : s.activePageId,
-  })),
+  renameFolder: (id, name) => {
+    set((s) => ({
+      folders: s.folders.map((f) => f.id === id ? { ...f, name } : f),
+    }));
+    supabase.from('folders').update({ name }).eq('id', id);
+  },
+  deleteFolder: (id) => {
+    set((s) => ({
+      folders: s.folders.filter((f) => f.id !== id),
+      pages: s.pages.filter((p) => p.folderId !== id),
+      activePageId: s.activePageId && s.pages.find((p) => p.id === s.activePageId)?.folderId === id ? null : s.activePageId,
+    }));
+    supabase.from('pages').delete().eq('folder_id', id);
+    supabase.from('folders').delete().eq('id', id);
+  },
   toggleFolder: (id) => set((s) => ({
     folders: s.folders.map((f) => f.id === id ? { ...f, isOpen: !f.isOpen } : f),
   })),
-  reorderFolders: (from, to) => set((s) => {
+  reorderFolders: (from, to) => {
+    const s = get();
     const arr = [...s.folders];
     const [item] = arr.splice(from, 1);
     arr.splice(to, 0, item);
-    return { folders: arr.map((f, i) => ({ ...f, position: i })) };
-  }),
+    const updated = arr.map((f, i) => ({ ...f, position: i }));
+    set({ folders: updated });
+    Promise.all(updated.map(f =>
+      supabase.from('folders').update({ position: f.position }).eq('id', f.id)
+    ));
+  },
 
   addPage: async (folderId) => {
     const userId = useAuthStore.getState().user?.id;
@@ -188,20 +217,31 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       position: newPage.position,
     });
   },
-  renamePage: (id, title) => set((s) => ({
-    pages: s.pages.map((p) => p.id === id ? { ...p, title } : p),
-  })),
-  deletePage: (id) => set((s) => ({
-    pages: s.pages.filter((p) => p.id !== id),
-    activePageId: s.activePageId === id ? null : s.activePageId,
-  })),
-  reorderPages: (folderId, from, to) => set((s) => {
+  renamePage: (id, title) => {
+    set((s) => ({
+      pages: s.pages.map((p) => p.id === id ? { ...p, title } : p),
+    }));
+    supabase.from('pages').update({ title }).eq('id', id);
+  },
+  deletePage: (id) => {
+    set((s) => ({
+      pages: s.pages.filter((p) => p.id !== id),
+      activePageId: s.activePageId === id ? null : s.activePageId,
+    }));
+    supabase.from('pages').delete().eq('id', id);
+  },
+  reorderPages: (folderId, from, to) => {
+    const s = get();
     const folderPages = s.pages.filter((p) => p.folderId === folderId).sort((a, b) => a.position - b.position);
     const otherPages = s.pages.filter((p) => p.folderId !== folderId);
     const [item] = folderPages.splice(from, 1);
     folderPages.splice(to, 0, item);
-    return { pages: [...otherPages, ...folderPages.map((p, i) => ({ ...p, position: i }))] };
-  }),
+    const reordered = folderPages.map((p, i) => ({ ...p, position: i }));
+    set({ pages: [...otherPages, ...reordered] });
+    Promise.all(reordered.map(p =>
+      supabase.from('pages').update({ position: p.position }).eq('id', p.id)
+    ));
+  },
 
   addBlock: (pageId, type, afterBlockId, initialData) => {
     const newBlock = defaultBlock(type);
@@ -240,8 +280,15 @@ export const useWikiStore = create<WikiState>((set, get) => ({
         blocks: p.blocks.map((b) => {
           if (b.id !== blockId) return b;
           if (type === 'table') return { ...b, type, data: { rows: [['', ''], ['', '']] } };
-          if (type === 'checklist') return { ...b, type, data: { text: b.data.text || '', checked: false } };
-          return { ...b, type };
+          // Preserve content for all non-table types; add checked for checklist
+          const preserved: Record<string, unknown> = { content: b.data.content || [] };
+          if (['bullet', 'numbered', 'checklist'].includes(type)) {
+            preserved.indent = b.data.indent || 0;
+          }
+          if (type === 'checklist') {
+            preserved.checked = b.data.checked ?? false;
+          }
+          return { ...b, type, data: preserved };
         }),
       }
     ),

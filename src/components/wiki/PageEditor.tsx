@@ -19,7 +19,7 @@ import {
 import {
   Type, Heading1, Heading2, Heading3,
   List, ListOrdered, CheckSquare, Table,
-  Save, Check, Users,
+  Save, Check, Users, Bold, Italic, Link,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -49,6 +49,19 @@ const PageEditor = () => {
   const [showSaved, setShowSaved] = useState(false);
   const [pendingNavId, setPendingNavId] = useState<string | null>(null);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+  const [formatState, setFormatState] = useState({ bold: false, italic: false });
+
+  // Track bold/italic state at cursor position
+  useEffect(() => {
+    const update = () => {
+      setFormatState({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+      });
+    };
+    document.addEventListener('selectionchange', update);
+    return () => document.removeEventListener('selectionchange', update);
+  }, []);
 
   const handleAddBlock = useCallback((pageId: string, type: Block['type'], afterBlockId?: string, initialData?: Record<string, unknown>) => {
     const newId = addBlock(pageId, type, afterBlockId, initialData);
@@ -230,18 +243,79 @@ const PageEditor = () => {
         {/* Toolbar */}
         {!isLocked && (
           <div className="flex items-center gap-0.5 mt-4 mb-6 p-1 rounded-lg bg-muted/50 w-fit">
+            {/* Block type buttons */}
             {blockTypes.map(({ type, icon: Icon, label }) => (
+              <button
+                key={type}
+                onClick={() => handleAddBlock(page.id, type)}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-background rounded-md transition-colors"
+                title={`Add ${label}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
+
+            {/* Separator */}
+            <div className="w-px h-4 bg-border mx-1 shrink-0" />
+
+            {/* Inline formatting buttons — use onMouseDown to preserve editor selection */}
             <button
-              key={type}
-              onClick={() => handleAddBlock(page.id, type)}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-background rounded-md transition-colors"
-              title={`Add ${label}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                document.execCommand('bold');
+                document.activeElement?.dispatchEvent(new Event('input', { bubbles: true }));
+                setFormatState(f => ({ ...f, bold: document.queryCommandState('bold') }));
+              }}
+              title="Bold (Ctrl+B)"
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors ${
+                formatState.bold
+                  ? 'bg-background text-foreground shadow-sm font-semibold'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background'
+              }`}
             >
-              <Icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{label}</span>
+              <Bold className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Bold</span>
             </button>
-          ))}
-        </div>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                document.execCommand('italic');
+                document.activeElement?.dispatchEvent(new Event('input', { bubbles: true }));
+                setFormatState(f => ({ ...f, italic: document.queryCommandState('italic') }));
+              }}
+              title="Italic (Ctrl+I)"
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors ${
+                formatState.italic
+                  ? 'bg-background text-foreground shadow-sm italic'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background'
+              }`}
+            >
+              <Italic className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Italic</span>
+            </button>
+            <button
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const selection = window.getSelection();
+                const selectedText = selection?.toString() || '';
+                const url = window.prompt('Enter URL:', 'https://');
+                if (!url) return;
+                const label = selectedText || url;
+                document.execCommand(
+                  'insertHTML',
+                  false,
+                  `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80">${label}</a>`,
+                );
+                document.activeElement?.dispatchEvent(new Event('input', { bubbles: true }));
+              }}
+              title="Insert Link"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-background rounded-md transition-colors"
+            >
+              <Link className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Link</span>
+            </button>
+          </div>
         )}
 
         {/* Blocks */}

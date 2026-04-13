@@ -30,7 +30,7 @@ const TopBar = () => {
 
       {user && (
         <div className="flex items-center ml-4 shrink-0">
-          <div 
+          <div
             className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm"
             title={user.email}
           >
