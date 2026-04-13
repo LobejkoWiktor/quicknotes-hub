@@ -26,6 +26,7 @@ export interface Page {
 export interface Folder {
   id: string;
   name: string;
+  parentId: string | null;
   position: number;
   isOpen: boolean;
 }
@@ -44,7 +45,7 @@ interface WikiState {
   setActivePage: (id: string | null) => void;
   clearWikiData: () => void;
 
-  addFolder: (name: string) => Promise<void>;
+  addFolder: (name: string, parentId?: string | null) => Promise<void>;
   renameFolder: (id: string, name: string) => void;
   deleteFolder: (id: string) => void;
   toggleFolder: (id: string) => void;
@@ -103,6 +104,7 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     const folders: Folder[] = (dbFolders || []).map(f => ({
       id: f.id,
       name: f.name,
+      parentId: f.parent_id ?? null,
       position: f.position,
       isOpen: true,
     }));
@@ -142,21 +144,25 @@ export const useWikiStore = create<WikiState>((set, get) => ({
   setSearchQuery: (q) => set({ searchQuery: q }),
   setActivePage: (id) => set({ activePageId: id }),
 
-  addFolder: async (name) => {
+  addFolder: async (name, parentId = null) => {
     const userId = useAuthStore.getState().user?.id;
     if (!userId) return;
 
     const s = get();
-    const newFolder = { id: uid(), name, position: s.folders.length, isOpen: true };
+    // Position among siblings (folders with the same parentId)
+    const siblings = s.folders.filter(f => f.parentId === (parentId ?? null));
+    const newFolder: Folder = { id: uid(), name, parentId: parentId ?? null, position: siblings.length, isOpen: true };
     
     set({ folders: [...s.folders, newFolder] });
 
-    await supabase.from('folders').insert({
+    const row: Record<string, unknown> = {
       id: newFolder.id,
       user_id: userId,
       name: newFolder.name,
       position: newFolder.position,
-    });
+    };
+    if (newFolder.parentId) row.parent_id = newFolder.parentId;
+    await supabase.from('folders').insert(row);
   },
   renameFolder: (id, name) => {
     set((s) => ({
@@ -165,12 +171,21 @@ export const useWikiStore = create<WikiState>((set, get) => ({
     supabase.from('folders').update({ name }).eq('id', id);
   },
   deleteFolder: (id) => {
+    // Collect all descendant folder IDs (cascade)
+    const s = get();
+    const allIds = new Set<string>();
+    const collect = (fid: string) => {
+      allIds.add(fid);
+      s.folders.filter(f => f.parentId === fid).forEach(f => collect(f.id));
+    };
+    collect(id);
+
     set((s) => ({
-      folders: s.folders.filter((f) => f.id !== id),
-      pages: s.pages.filter((p) => p.folderId !== id),
-      activePageId: s.activePageId && s.pages.find((p) => p.id === s.activePageId)?.folderId === id ? null : s.activePageId,
+      folders: s.folders.filter((f) => !allIds.has(f.id)),
+      pages: s.pages.filter((p) => !allIds.has(p.folderId)),
+      activePageId: s.activePageId && s.pages.find((p) => p.id === s.activePageId && allIds.has(p.folderId)) ? null : s.activePageId,
     }));
-    supabase.from('pages').delete().eq('folder_id', id);
+    // DB cascade handles children via ON DELETE CASCADE
     supabase.from('folders').delete().eq('id', id);
   },
   toggleFolder: (id) => set((s) => ({
