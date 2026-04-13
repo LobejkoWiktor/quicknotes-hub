@@ -26,7 +26,7 @@ function inlineToHtml(content: InlineText[]): string {
     if (bold) html = `<strong>${html}</strong>`;
     if (italic) html = `<em>${html}</em>`;
     if (href) {
-      html = `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80">${html}</a>`;
+      html = `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer">${html}</a>`;
     }
     return html;
   }).join('');
@@ -266,7 +266,7 @@ const BlockRenderer = ({
       document.execCommand(
         'insertHTML',
         false,
-        `<a href="${linkMatch[2]}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80">${linkMatch[1]}</a>`,
+        `<a href="${linkMatch[2]}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer">${linkMatch[1]}</a>`,
       );
       escapeCursorFromFormatting();
       return true;
@@ -429,6 +429,27 @@ const BlockRenderer = ({
     }
   };
 
+  // ── Link click handler ─────────────────────────────────────────────────────
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Find if the click target is inside an <a> element
+    let target = e.target as HTMLElement | null;
+    while (target && target !== ref.current) {
+      if (target.tagName.toLowerCase() === 'a') {
+        const href = target.getAttribute('href');
+        if (!href) return;
+
+        // Read-only: always follow. Edit mode: Ctrl/Cmd+Click to follow.
+        if (readOnly || e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          window.open(href, '_blank', 'noopener,noreferrer');
+        }
+        return;
+      }
+      target = target.parentElement;
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const baseClasses =
@@ -440,6 +461,7 @@ const BlockRenderer = ({
     suppressContentEditableWarning: true,
     onInput: handleInput,
     onKeyDown: handleKeyDown,
+    onClick: handleClick,
   };
 
   const renderEditable = () => {

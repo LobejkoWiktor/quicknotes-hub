@@ -305,7 +305,7 @@ const PageEditor = () => {
                 document.execCommand(
                   'insertHTML',
                   false,
-                  `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80">${label}</a>`,
+                  `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:opacity-80 cursor-pointer">${label}</a>`,
                 );
                 document.activeElement?.dispatchEvent(new Event('input', { bubbles: true }));
               }}
