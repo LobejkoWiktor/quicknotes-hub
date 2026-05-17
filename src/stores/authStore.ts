@@ -15,6 +15,8 @@ interface AuthState {
   logout: () => Promise<void>;
   initAuth: () => Promise<() => void>;
   clearError: () => void;
+  resetPasswordForEmail: (email: string) => Promise<boolean>;
+  updatePassword: (newPassword: string) => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -65,6 +67,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     import('./wikiStore').then(({ useWikiStore }) => {
       useWikiStore.getState().clearWikiData();
     });
+  },
+
+  resetPasswordForEmail: async (email) => {
+    set({ isLoading: true, error: null });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    });
+    if (error) {
+      set({ isLoading: false, error: error.message });
+      return false;
+    }
+    set({ isLoading: false });
+    return true;
+  },
+
+  updatePassword: async (newPassword) => {
+    set({ isLoading: true, error: null });
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      set({ isLoading: false, error: error.message });
+      return false;
+    }
+    set({ isLoading: false });
+    return true;
   },
 
   initAuth: async () => {

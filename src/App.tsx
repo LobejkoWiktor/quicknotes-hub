@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ForgotPassword from "./pages/ForgotPassword.tsx";
+import UpdatePassword from "./pages/UpdatePassword.tsx";
 import { useAuthStore } from "@/stores/authStore";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const AppContent = () => {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

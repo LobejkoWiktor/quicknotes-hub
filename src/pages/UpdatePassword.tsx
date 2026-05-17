@@ -2,18 +2,33 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BookOpen } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
-const ForgotPassword = () => {
-  const [email, setEmail] = useState('');
+const UpdatePassword = () => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { resetPasswordForEmail, isLoading, error, clearError } = useAuthStore();
+  const navigate = useNavigate();
+  const { updatePassword, isLoading, error: storeError, clearError } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     clearError();
-    const success = await resetPasswordForEmail(email);
+    
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    const success = await updatePassword(password);
     if (success) {
       setIsSubmitted(true);
     }
@@ -29,51 +44,51 @@ const ForgotPassword = () => {
             </div>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Reset Password
+            Update Password
           </h1>
           <p className="text-sm text-muted-foreground">
-            Enter your email to receive a password reset link
+            Enter your new password below
           </p>
         </div>
 
-        {error && (
+        {(error || storeError) && (
           <div className="p-3 text-sm font-medium bg-destructive/15 text-destructive rounded-md">
-            {error}
+            {error || storeError}
           </div>
         )}
 
         {isSubmitted ? (
           <div className="space-y-4">
             <div className="p-4 text-sm font-medium bg-green-500/15 text-green-600 dark:text-green-400 rounded-md text-center">
-              If an account exists with this email, a reset link has been sent.
+              Your password has been updated successfully.
             </div>
-            <Button asChild className="w-full" variant="outline">
-              <Link to="/">Back to Login</Link>
+            <Button onClick={() => navigate('/')} className="w-full">
+              Go to Login
             </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-4">
               <Input
-                type="email"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="password"
+                placeholder="New Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={6}
+              />
+              <Input
+                type="password"
+                placeholder="Confirm New Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Sending...' : 'Send Reset Link'}
+              {isLoading ? 'Updating...' : 'Update Password'}
             </Button>
-            <div className="text-center mt-4">
-              <Link
-                to="/"
-                onClick={() => clearError()}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Back to Login
-              </Link>
-            </div>
           </form>
         )}
       </div>
@@ -81,4 +96,4 @@ const ForgotPassword = () => {
   );
 };
 
-export default ForgotPassword;
+export default UpdatePassword;
