@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Login = () => {
   const [isSignup, setIsSignup] = useState(false);
@@ -71,6 +72,13 @@ const Login = () => {
             required
             minLength={6}
           />
+          {!isSignup && (
+            <div className="flex justify-end">
+              <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                Forgot your password?
+              </Link>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Loading...' : isSignup ? 'Sign up' : 'Sign in'}
           </Button>
